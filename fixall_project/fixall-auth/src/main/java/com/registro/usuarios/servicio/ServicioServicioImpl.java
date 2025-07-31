@@ -2,6 +2,7 @@ package com.registro.usuarios.servicio;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -22,7 +23,7 @@ import com.registro.usuarios.repositorio.UsuarioRepositorio;
 
 @Service
 public class ServicioServicioImpl {
-    
+
     @Autowired
     private ServicioRepositorio servicioRepositorio;
 
@@ -33,10 +34,10 @@ public class ServicioServicioImpl {
     private EstadoRepositorio estadoRepositorio;
 
     @Autowired
-    private UsuarioRepositorio usuarioRepositorio; // Necesitamos el usuario para asociarlo al servicio
+    private UsuarioRepositorio usuarioRepositorio;
 
     @Autowired
-    private EspecializacionRepositorio especializacionRepositorio; // Repositorio para Especializacion
+    private EspecializacionRepositorio especializacionRepositorio;
 
     /**
      * Registrar un nuevo servicio por parte de un cliente.
@@ -44,74 +45,71 @@ public class ServicioServicioImpl {
     public void registrarServicio(String emailUsuario, ServicioRegistroDTO registroDTO) {
         Usuario usuario = usuarioRepositorio.findByEmail(emailUsuario)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
-    
+
         TipoServicio tipoServicio = tipoServicioRepositorio.findById(registroDTO.getTipoServicioId())
                 .orElseThrow(() -> new RuntimeException("Tipo de Servicio no encontrado"));
-    
+
         Estado estadoPendiente = estadoRepositorio.findByNombre("Pendiente")
                 .orElseThrow(() -> new RuntimeException("Estado no encontrado"));
-    
+
         Especializacion especializacion = especializacionRepositorio.findById(registroDTO.getEspecializacionId())
                 .orElseThrow(() -> new RuntimeException("Especialización no encontrada"));
-    
+
         DetalleServicio detalleServicio = new DetalleServicio(registroDTO.getDescripcion(), LocalDateTime.now());
-    
+
         Servicio servicio = new Servicio(usuario, null, tipoServicio, detalleServicio, estadoPendiente, especializacion);
-    
-        detalleServicio.setServicio(servicio);
-    
+
+        detalleServicio.setServicio(servicio); // Relación bidireccional
+
         servicioRepositorio.save(servicio);
     }
-    
-    
-    
-
-
 
     /**
-     * Obtener los servicios registrados por un usuario específico.
+     * Obtener los servicios registrados por un cliente.
      */
     public List<Servicio> obtenerServiciosPorUsuario(String emailUsuario) {
-        // Buscar el usuario por su email
         Usuario usuario = usuarioRepositorio.findByEmail(emailUsuario)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
-
-        // Buscar servicios relacionados al usuario
         return servicioRepositorio.findByUsuario(usuario);
     }
 
     /**
-     * Obtener todos los servicios solicitados.
+     * Obtener todos los servicios (solo si es necesario para admin).
      */
     public List<Servicio> obtenerTodosLosServicios() {
-        // Recuperar todos los servicios solicitados
         return servicioRepositorio.findAll();
     }
 
     /**
-     * Actualizar los estados de los servicios.
-     * @param estados Map que contiene el ID del servicio y el ID del nuevo estado.
+     * Obtener servicios pendientes relacionados con las especializaciones del técnico.
+     */
+    public List<Servicio> obtenerServiciosParaTecnico(String emailTecnico) {
+        Usuario tecnico = usuarioRepositorio.findByEmail(emailTecnico)
+                .orElseThrow(() -> new RuntimeException("Técnico no encontrado"));
+
+        Set<Especializacion> especializaciones = tecnico.getEspecializaciones();
+        return servicioRepositorio.findPendientesPorEspecializaciones(especializaciones);
+    }
+
+    /**
+     * Actualizar el estado del servicio y asignar técnico si aplica.
      */
     public void actualizarEstadosServicios(Long servicioId, Long estadoId, String emailTecnico) {
-    
         Servicio servicio = servicioRepositorio.findById(servicioId)
                 .orElseThrow(() -> new RuntimeException("Servicio no encontrado"));
 
         Estado nuevoEstado = estadoRepositorio.findById(estadoId)
                 .orElseThrow(() -> new RuntimeException("Estado no encontrado"));
 
-        // Solo actualizar si el estado ha cambiado
         if (!servicio.getEstado().equals(nuevoEstado)) {
             Usuario tecnico = usuarioRepositorio.findByEmail(emailTecnico)
                     .orElseThrow(() -> new RuntimeException("Técnico no encontrado"));
 
             servicio.setEstado(nuevoEstado);
             servicio.setTecnico(tecnico);
-            servicio.setFechaUltimaActualizacion(LocalDateTime.now()); // Solo actualiza si hubo cambio
+            servicio.setFechaUltimaActualizacion(LocalDateTime.now());
 
             servicioRepositorio.save(servicio);
         }
-    
-}
-
+    }
 }

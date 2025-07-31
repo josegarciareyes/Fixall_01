@@ -41,7 +41,7 @@ public class CustomSuccessHandler implements AuthenticationSuccessHandler {
         // Redirección basada en el tipo de usuario
         if ("Cliente".equalsIgnoreCase(tipoUsuario)) {
             response.sendRedirect("/cliente/home"); // Página para clientes
-        } else if ("Técnico".equalsIgnoreCase(tipoUsuario)) {
+        } else if ("Tecnico".equalsIgnoreCase(tipoUsuario)) {
             response.sendRedirect("/tecnico/home"); // Página para técnicos
         } else {
             response.sendRedirect("/default/home"); // Página por defecto si no se identifica el tipo

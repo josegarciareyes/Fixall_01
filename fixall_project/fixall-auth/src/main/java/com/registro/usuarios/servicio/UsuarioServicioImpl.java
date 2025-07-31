@@ -18,6 +18,7 @@ import com.registro.usuarios.modelo.DatosPersonales;
 import com.registro.usuarios.modelo.Especializacion;
 import com.registro.usuarios.modelo.Rol;
 import com.registro.usuarios.modelo.TipoUsuario;
+import com.registro.usuarios.modelo.TipoUsuarioEnum;
 import com.registro.usuarios.modelo.Usuario;
 import com.registro.usuarios.repositorio.DatosPersonalesRepositorio;
 import com.registro.usuarios.repositorio.EspecializacionRepositorio;
@@ -50,15 +51,12 @@ public class UsuarioServicioImpl implements UsuarioServicio {
         this.especializacionRepositorio = especializacionRepositorio;
         this.passwordEncoder = passwordEncoder;
     }
-
 	
-	
-
 
 	// Método para registrar un usuario utilizando un DTO
 	@Override
 public Usuario registrarUsuario(UsuarioRegistroDTO registroDTO) {
-    // Buscar el tipo de usuario en la base de datos por ID
+    // Buscar el tipo de usuario en la base de datos
     TipoUsuario tipoUsuario = tipoUsuarioRepositorio.findById(registroDTO.getTipoUsuario().getId())
             .orElseThrow(() -> new RuntimeException("TipoUsuario no encontrado"));
 
@@ -68,19 +66,40 @@ public Usuario registrarUsuario(UsuarioRegistroDTO registroDTO) {
     usuario.setPassword(passwordEncoder.encode(registroDTO.getPassword()));
     usuario.setTipoUsuario(tipoUsuario);
 
-    // Guardar usuario primero (para evitar el error de entidad transitoria)
+    // Guardar usuario primero (para evitar error de entidad transitoria)
     usuario = usuarioRepositorio.save(usuario);
 
     // Asignar especializaciones si el usuario es técnico
     Set<Especializacion> especializaciones = new HashSet<>();
-    if ("TECNICO".equalsIgnoreCase(tipoUsuario.getNombre())) {
+
+    // Validar tipo de usuario con Enum
+    TipoUsuarioEnum tipoEnum = TipoUsuarioEnum.fromId(tipoUsuario.getId());
+
+    if (tipoEnum == TipoUsuarioEnum.TECNICO) {
         especializaciones = registroDTO.getEspecializacionIds().stream()
                 .map(id -> especializacionRepositorio.findById(id)
                         .orElseThrow(() -> new RuntimeException("Especialización no encontrada")))
                 .collect(Collectors.toSet());
+        usuario.setEspecializaciones(especializaciones);
     }
 
-    // Crear los datos personales y asociarlos al usuario ya guardado
+    // Asignar el rol por defecto
+    Rol rolUsuario = rolRepositorio.findByNombre("USUARIO")
+            .orElseThrow(() -> new RuntimeException("Rol USUARIO no encontrado"));
+    usuario.setRoles(new HashSet<>(Collections.singleton(rolUsuario)));
+
+    // Log de especializaciones antes de guardar
+    System.out.println("Especializaciones asignadas al usuario:");
+    if (usuario.getEspecializaciones() != null && !usuario.getEspecializaciones().isEmpty()) {
+        usuario.getEspecializaciones().forEach(e -> System.out.println(" - " + e.getNombre()));
+    } else {
+        System.out.println(" - Ninguna.");
+    }
+
+    // Guardar usuario con especializaciones y roles
+    usuario = usuarioRepositorio.save(usuario);
+
+    // Crear y guardar datos personales
     DatosPersonales datosPersonales = new DatosPersonales(
             registroDTO.getNombre(),
             registroDTO.getCedula(),
@@ -88,16 +107,12 @@ public Usuario registrarUsuario(UsuarioRegistroDTO registroDTO) {
             registroDTO.getTelefono(),
             usuario
     );
-
-    datosPersonales.setEspecializaciones(especializaciones);
-
-    // Guardar los datos personales después de que el usuario ya existe en la base de datos
     datosPersonalesRepositorio.save(datosPersonales);
 
-    // Asignar el rol por defecto
-    Rol rolUsuario = rolRepositorio.findByNombre("USUARIO")
-            .orElseThrow(() -> new RuntimeException("Rol USUARIO no encontrado"));
-    usuario.setRoles(Collections.singleton(rolUsuario));
+    // Confirmación final
+    if (!especializaciones.isEmpty()) {
+        System.out.println("✅ Especializaciones registradas en la BD para: " + usuario.getEmail());
+    }
 
     return usuario;
 }

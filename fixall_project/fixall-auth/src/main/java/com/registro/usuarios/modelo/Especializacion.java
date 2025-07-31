@@ -1,10 +1,14 @@
 package com.registro.usuarios.modelo;
 
+import java.util.HashSet;
+import java.util.Set;
+
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
+import javax.persistence.ManyToMany;
 import javax.persistence.Table;
 
 @Entity
@@ -17,6 +21,9 @@ public class Especializacion {
 
     @Column(nullable = false, unique = true)
     private String nombre;
+
+    @ManyToMany(mappedBy = "especializaciones")
+    private Set<Usuario> usuarios = new HashSet<>();
 
     // Constructor vacío
     public Especializacion() {
@@ -42,6 +49,14 @@ public class Especializacion {
 
     public void setNombre(String nombre) {
         this.nombre = nombre;
+    }
+
+    public Set<Usuario> getUsuarios() {
+    return usuarios;
+    }
+
+    public void setUsuarios(Set<Usuario> usuarios) {
+        this.usuarios = usuarios;
     }
 
 

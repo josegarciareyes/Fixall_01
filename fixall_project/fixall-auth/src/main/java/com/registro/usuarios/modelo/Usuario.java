@@ -45,9 +45,9 @@ public class Usuario {
     // Relación muchos a muchos con Especializacion
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
-    name = "usuario_especializaciones",
-    joinColumns = @JoinColumn(name = "usuario_id"),
-    inverseJoinColumns = @JoinColumn(name = "especializacion_id")
+        name = "usuario_especializaciones",
+        joinColumns = @JoinColumn(name = "usuario_id"),
+        inverseJoinColumns = @JoinColumn(name = "especializacion_id")
     )
     private Set<Especializacion> especializaciones;
 

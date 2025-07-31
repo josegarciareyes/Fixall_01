@@ -70,10 +70,10 @@
                             <div class="form-group mb-3" id="especializacionesDiv" style="display: none;">
                                 <label for="especializaciones">Especializaciones</label>
                                     <select class="form-control" id="especializaciones" name="especializacionIds" multiple>
-                                        <option value="1">Multi-Reparaciones</option>
-                                        <option value="2">Servicio Técnico de Celulares</option>
-                                        <option value="3">Servicio Técnico de Electrodomésticos</option>
-                                        <option value="4">Soporte Técnico Informático</option>
+                                        <option th:each="esp : ${especializaciones}" 
+                                            th:value="${esp.id}" 
+                                            th:text="${esp.nombre}">
+                                        </option>
                                     </select>
                                 
                             </div>
