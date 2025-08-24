@@ -2,10 +2,9 @@ package com.registro.usuarios.servicio;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Set;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.registro.usuarios.controlador.dto.ServicioRegistroDTO;
 import com.registro.usuarios.modelo.DetalleServicio;
@@ -20,96 +19,105 @@ import com.registro.usuarios.repositorio.ServicioRepositorio;
 import com.registro.usuarios.repositorio.TipoServicioRepositorio;
 import com.registro.usuarios.repositorio.UsuarioRepositorio;
 
-
 @Service
 public class ServicioServicioImpl {
 
-    @Autowired
-    private ServicioRepositorio servicioRepositorio;
+    private final ServicioRepositorio servicioRepositorio;
+    private final UsuarioRepositorio usuarioRepositorio;
+    private final EspecializacionRepositorio especializacionRepositorio;
+    private final TipoServicioRepositorio tipoServicioRepositorio;
+    private final EstadoRepositorio estadoRepositorio;
 
-    @Autowired
-    private TipoServicioRepositorio tipoServicioRepositorio;
-
-    @Autowired
-    private EstadoRepositorio estadoRepositorio;
-
-    @Autowired
-    private UsuarioRepositorio usuarioRepositorio;
-
-    @Autowired
-    private EspecializacionRepositorio especializacionRepositorio;
+    public ServicioServicioImpl(
+            ServicioRepositorio servicioRepositorio,
+            UsuarioRepositorio usuarioRepositorio,
+            EspecializacionRepositorio especializacionRepositorio,
+            TipoServicioRepositorio tipoServicioRepositorio,
+            EstadoRepositorio estadoRepositorio) {
+        this.servicioRepositorio = servicioRepositorio;
+        this.usuarioRepositorio = usuarioRepositorio;
+        this.especializacionRepositorio = especializacionRepositorio;
+        this.tipoServicioRepositorio = tipoServicioRepositorio;
+        this.estadoRepositorio = estadoRepositorio;
+    }
 
     /**
-     * Registrar un nuevo servicio por parte de un cliente.
+     * ✅ Registrar un nuevo servicio solicitado por un cliente
      */
+    @Transactional
     public void registrarServicio(String emailUsuario, ServicioRegistroDTO registroDTO) {
-        Usuario usuario = usuarioRepositorio.findByEmail(emailUsuario)
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
-
-        TipoServicio tipoServicio = tipoServicioRepositorio.findById(registroDTO.getTipoServicioId())
-                .orElseThrow(() -> new RuntimeException("Tipo de Servicio no encontrado"));
-
-        Estado estadoPendiente = estadoRepositorio.findByNombre("Pendiente")
-                .orElseThrow(() -> new RuntimeException("Estado no encontrado"));
+        Usuario cliente = usuarioRepositorio.findByEmail(emailUsuario)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado con email: " + emailUsuario));
 
         Especializacion especializacion = especializacionRepositorio.findById(registroDTO.getEspecializacionId())
                 .orElseThrow(() -> new RuntimeException("Especialización no encontrada"));
 
-        DetalleServicio detalleServicio = new DetalleServicio(registroDTO.getDescripcion(), LocalDateTime.now());
+        TipoServicio tipoServicio = tipoServicioRepositorio.findById(registroDTO.getTipoServicioId())
+                .orElseThrow(() -> new RuntimeException("Tipo de servicio no encontrado"));
 
-        Servicio servicio = new Servicio(usuario, null, tipoServicio, detalleServicio, estadoPendiente, especializacion);
+        Estado estadoPendiente = estadoRepositorio.findByNombre("Pendiente")
+                .orElseThrow(() -> new RuntimeException("Estado 'Pendiente' no encontrado"));
 
-        detalleServicio.setServicio(servicio); // Relación bidireccional
+        // 🔹 Crear detalle del servicio con la descripción
+        DetalleServicio detalle = new DetalleServicio();
+        detalle.setDescripcion(registroDTO.getDescripcion());
+        detalle.setFechaRegistro(LocalDateTime.now());
+
+        // 🔹 Crear servicio asociado al cliente
+        Servicio servicio = new Servicio(
+                cliente,
+                null, // técnico aún sin asignar
+                tipoServicio,
+                detalle,
+                estadoPendiente,
+                especializacion
+        );
 
         servicioRepositorio.save(servicio);
     }
 
     /**
-     * Obtener los servicios registrados por un cliente.
+     * ✅ Actualizar estado de un servicio por parte del técnico autenticado
+     */
+    @Transactional
+    public void actualizarEstadosServicios(Long servicioId, Long estadoId, String emailTecnico) {
+        Servicio servicio = servicioRepositorio.findById(servicioId)
+                .orElseThrow(() -> new RuntimeException("Servicio no encontrado con ID: " + servicioId));
+
+        Estado nuevoEstado = estadoRepositorio.findById(estadoId)
+                .orElseThrow(() -> new RuntimeException("Estado no encontrado con ID: " + estadoId));
+
+        Usuario tecnico = usuarioRepositorio.findByEmail(emailTecnico)
+                .orElseThrow(() -> new RuntimeException("Técnico no encontrado con email: " + emailTecnico));
+
+        // Si estaba sin asignar → se asigna al técnico que lo toma
+        if (servicio.getTecnico() == null) {
+            servicio.setTecnico(tecnico);
+        } else if (!servicio.getTecnico().getId().equals(tecnico.getId())) {
+            throw new RuntimeException("El servicio ya está asignado a otro técnico");
+        }
+
+        servicio.setEstado(nuevoEstado);
+        servicio.setFechaUltimaActualizacion(LocalDateTime.now());
+
+        servicioRepositorio.save(servicio);
+    }
+
+    /**
+     * ✅ Obtener servicios por cliente
      */
     public List<Servicio> obtenerServiciosPorUsuario(String emailUsuario) {
         Usuario usuario = usuarioRepositorio.findByEmail(emailUsuario)
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado con email: " + emailUsuario));
         return servicioRepositorio.findByUsuario(usuario);
     }
 
     /**
-     * Obtener todos los servicios (solo si es necesario para admin).
-     */
-    public List<Servicio> obtenerTodosLosServicios() {
-        return servicioRepositorio.findAll();
-    }
-
-    /**
-     * Obtener servicios pendientes relacionados con las especializaciones del técnico.
+     * ✅ Obtener servicios visibles para un técnico (filtra solo por especialización)
      */
     public List<Servicio> obtenerServiciosParaTecnico(String emailTecnico) {
         Usuario tecnico = usuarioRepositorio.findByEmail(emailTecnico)
-                .orElseThrow(() -> new RuntimeException("Técnico no encontrado"));
-
-        Set<Especializacion> especializaciones = tecnico.getEspecializaciones();
-        return servicioRepositorio.findPendientesPorEspecializaciones(especializaciones);
-    }
-
-    /**
-     * Actualizar el estado del servicio y asignar técnico si aplica.
-     */
-    public void actualizarEstadosServicios(Long servicioId, Long estadoId, String emailTecnico) {
-        Servicio servicio = servicioRepositorio.findById(servicioId)
-                .orElseThrow(() -> new RuntimeException("Servicio no encontrado"));
-
-        Estado nuevoEstado = estadoRepositorio.findById(estadoId)
-                .orElseThrow(() -> new RuntimeException("Estado no encontrado"));
-
-        if (!servicio.getEstado().equals(nuevoEstado)) {
-            Usuario tecnico = usuarioRepositorio.findByEmail(emailTecnico)
-                    .orElseThrow(() -> new RuntimeException("Técnico no encontrado"));
-
-            servicio.setEstado(nuevoEstado);
-            servicio.setTecnico(tecnico);
-            servicio.setFechaUltimaActualizacion(LocalDateTime.now());
-
-            servicioRepositorio.save(servicio);
-        }
+                .orElseThrow(() -> new RuntimeException("Técnico no encontrado con email: " + emailTecnico));
+        return servicioRepositorio.findByEspecializacionIn(tecnico.getEspecializaciones());
     }
 }

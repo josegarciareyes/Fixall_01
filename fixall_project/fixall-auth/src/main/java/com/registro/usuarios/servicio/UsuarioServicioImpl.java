@@ -1,7 +1,5 @@
 package com.registro.usuarios.servicio;
 
-
-
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -29,16 +27,14 @@ import com.registro.usuarios.repositorio.UsuarioRepositorio;
 @Service
 public class UsuarioServicioImpl implements UsuarioServicio {
 
-	
-	private final UsuarioRepositorio usuarioRepositorio;
-	private final DatosPersonalesRepositorio datosPersonalesRepositorio;
-	private final RolRepositorio rolRepositorio;
+    private final UsuarioRepositorio usuarioRepositorio;
+    private final DatosPersonalesRepositorio datosPersonalesRepositorio;
+    private final RolRepositorio rolRepositorio;
     private final TipoUsuarioRepositorio tipoUsuarioRepositorio;
-	private final EspecializacionRepositorio especializacionRepositorio;
-	private final BCryptPasswordEncoder passwordEncoder; // Codificador de contraseñas
+    private final EspecializacionRepositorio especializacionRepositorio;
+    private final BCryptPasswordEncoder passwordEncoder;
 
-    // Constructor para inyectar dependencias
-	public UsuarioServicioImpl(UsuarioRepositorio usuarioRepositorio,
+    public UsuarioServicioImpl(UsuarioRepositorio usuarioRepositorio,
                                DatosPersonalesRepositorio datosPersonalesRepositorio,
                                RolRepositorio rolRepositorio,
                                TipoUsuarioRepositorio tipoUsuarioRepositorio,
@@ -51,132 +47,110 @@ public class UsuarioServicioImpl implements UsuarioServicio {
         this.especializacionRepositorio = especializacionRepositorio;
         this.passwordEncoder = passwordEncoder;
     }
-	
 
-	// Método para registrar un usuario utilizando un DTO
-	@Override
-public Usuario registrarUsuario(UsuarioRegistroDTO registroDTO) {
-    // Buscar el tipo de usuario en la base de datos
-    TipoUsuario tipoUsuario = tipoUsuarioRepositorio.findById(registroDTO.getTipoUsuario().getId())
-            .orElseThrow(() -> new RuntimeException("TipoUsuario no encontrado"));
+    @Override
+    public Usuario registrarUsuario(UsuarioRegistroDTO registroDTO) {
+        // Buscar tipo de usuario
+        TipoUsuario tipoUsuario = tipoUsuarioRepositorio.findById(registroDTO.getTipoUsuario().getId())
+                .orElseThrow(() -> new RuntimeException("TipoUsuario no encontrado"));
 
-    // Crear el objeto Usuario
-    Usuario usuario = new Usuario();
-    usuario.setEmail(registroDTO.getEmail());
-    usuario.setPassword(passwordEncoder.encode(registroDTO.getPassword()));
-    usuario.setTipoUsuario(tipoUsuario);
+        // Crear usuario base
+        Usuario usuario = new Usuario();
+        usuario.setEmail(registroDTO.getEmail());
+        usuario.setPassword(passwordEncoder.encode(registroDTO.getPassword()));
+        usuario.setTipoUsuario(tipoUsuario);
 
-    // Guardar usuario primero (para evitar error de entidad transitoria)
-    usuario = usuarioRepositorio.save(usuario);
+        // Guardar primero para evitar transitorios
+        usuario = usuarioRepositorio.save(usuario);
 
-    // Asignar especializaciones si el usuario es técnico
-    Set<Especializacion> especializaciones = new HashSet<>();
+        // Validar si es técnico
+        TipoUsuarioEnum tipoEnum = TipoUsuarioEnum.fromId(tipoUsuario.getId());
+        if (tipoEnum == TipoUsuarioEnum.TECNICO) {
+            Set<Long> idsSeleccionados = registroDTO.getEspecializacionIds() == null
+                    ? Collections.emptySet()
+                    : registroDTO.getEspecializacionIds();
 
-    // Validar tipo de usuario con Enum
-    TipoUsuarioEnum tipoEnum = TipoUsuarioEnum.fromId(tipoUsuario.getId());
+            Set<Especializacion> especializaciones = idsSeleccionados.stream()
+                    .map(id -> especializacionRepositorio.findById(id)
+                            .orElseThrow(() -> new RuntimeException("Especialización no encontrada: " + id)))
+                    .collect(Collectors.toSet());
 
-    if (tipoEnum == TipoUsuarioEnum.TECNICO) {
-        especializaciones = registroDTO.getEspecializacionIds().stream()
-                .map(id -> especializacionRepositorio.findById(id)
-                        .orElseThrow(() -> new RuntimeException("Especialización no encontrada")))
-                .collect(Collectors.toSet());
-        usuario.setEspecializaciones(especializaciones);
+            usuario.setEspecializaciones(especializaciones);
+        }
+
+        // Rol por defecto
+        Rol rolUsuario = rolRepositorio.findByNombre("USUARIO")
+                .orElseThrow(() -> new RuntimeException("Rol USUARIO no encontrado"));
+        usuario.setRoles(new HashSet<>(Collections.singleton(rolUsuario)));
+
+        // Guardar usuario con roles/especializaciones
+        usuario = usuarioRepositorio.save(usuario);
+
+        // Crear datos personales y sincronizar
+        DatosPersonales datosPersonales = new DatosPersonales(
+                registroDTO.getNombre(),
+                registroDTO.getCedula(),
+                registroDTO.getDireccion(),
+                registroDTO.getTelefono(),
+                usuario
+        );
+        datosPersonalesRepositorio.save(datosPersonales);
+
+        usuario.setDatosPersonales(datosPersonales);
+        usuario = usuarioRepositorio.save(usuario);
+
+        return usuario;
     }
 
-    // Asignar el rol por defecto
-    Rol rolUsuario = rolRepositorio.findByNombre("USUARIO")
-            .orElseThrow(() -> new RuntimeException("Rol USUARIO no encontrado"));
-    usuario.setRoles(new HashSet<>(Collections.singleton(rolUsuario)));
+    @Override
+    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
+        Usuario usuario = usuarioRepositorio.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado con email: " + email));
 
-    // Log de especializaciones antes de guardar
-    System.out.println("Especializaciones asignadas al usuario:");
-    if (usuario.getEspecializaciones() != null && !usuario.getEspecializaciones().isEmpty()) {
-        usuario.getEspecializaciones().forEach(e -> System.out.println(" - " + e.getNombre()));
-    } else {
-        System.out.println(" - Ninguna.");
+        return org.springframework.security.core.userdetails.User.builder()
+                .username(usuario.getEmail())
+                .password(usuario.getPassword())
+                .authorities(mapearAutoridadesRoles(usuario.getRoles()))
+                .build();
     }
 
-    // Guardar usuario con especializaciones y roles
-    usuario = usuarioRepositorio.save(usuario);
-
-    // Crear y guardar datos personales
-    DatosPersonales datosPersonales = new DatosPersonales(
-            registroDTO.getNombre(),
-            registroDTO.getCedula(),
-            registroDTO.getDireccion(),
-            registroDTO.getTelefono(),
-            usuario
-    );
-    datosPersonalesRepositorio.save(datosPersonales);
-
-    // Confirmación final
-    if (!especializaciones.isEmpty()) {
-        System.out.println("✅ Especializaciones registradas en la BD para: " + usuario.getEmail());
-    }
-
-    return usuario;
-}
-
-
-
-	    @Override
-		public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-			// Busca el usuario en la base de datos utilizando el repositorio
-			Usuario usuario = usuarioRepositorio.findByEmail(email)
-					.orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado con email: " + email));
-		
-			// Crea y devuelve un objeto UserDetails con la información del usuario
-			return org.springframework.security.core.userdetails.User.builder()
-					.username(usuario.getEmail())
-					.password(usuario.getPassword())
-					.authorities(mapearAutoridadesRoles(usuario.getRoles()))// Asigna los roles del usuario como autoridades
-					.build();
-		}
-
-        private Set<? extends org.springframework.security.core.GrantedAuthority> mapearAutoridadesRoles(Set<com.registro.usuarios.modelo.Rol> roles) {
-			// Convierte los roles en objetos GrantedAuthority compatibles con Spring Security
+    private Set<? extends org.springframework.security.core.GrantedAuthority> mapearAutoridadesRoles(Set<Rol> roles) {
         return roles.stream()
-            .map(rol -> new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + rol.getNombre()))
-            .collect(Collectors.toSet());
+                .map(rol -> new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + rol.getNombre()))
+                .collect(Collectors.toSet());
+    }
 
-}
+    @Override
+    public List<Usuario> listarUsuarios() {
+        return usuarioRepositorio.findAll();
+    }
 
-	// Método para obtener todos los usuarios de la base de datos	
-	@Override
-	public List<Usuario> listarUsuarios() {
-		// Recupera todos los usuarios almacenados en la base de datos
-		return usuarioRepositorio.findAll();
-	}
+    @Override
+    public Usuario actualizarUsuario(Long id, Usuario usuarioActualizado) {
+        Usuario usuarioExistente = usuarioRepositorio.findById(id)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado con ID: " + id));
 
-// Método para actualizar un usuario existente
-@Override
-public Usuario actualizarUsuario(Long id, Usuario usuarioActualizado) {
-	// Busca el usuario existente por ID
-	Usuario usuarioExistente = usuarioRepositorio.findById(id)
-			.orElseThrow(() -> new RuntimeException("Usuario no encontrado con ID: " + id));
-	
-	// Actualiza los datos del usuario existente con los datos del usuario actualizado
-	usuarioExistente.setEmail(usuarioActualizado.getEmail());
-	usuarioExistente.setPassword(passwordEncoder.encode(usuarioActualizado.getPassword()));
-	usuarioExistente.getDatosPersonales().setNombre(usuarioActualizado.getDatosPersonales().getNombre());
-	usuarioExistente.getDatosPersonales().setCedula(usuarioActualizado.getDatosPersonales().getCedula());
-	usuarioExistente.getDatosPersonales().setDireccion(usuarioActualizado.getDatosPersonales().getDireccion());
-	usuarioExistente.getDatosPersonales().setTelefono(usuarioActualizado.getDatosPersonales().getTelefono());
-	
-	// Guarda y devuelve el usuario actualizado
-	return usuarioRepositorio.save(usuarioExistente);
-}
+        usuarioExistente.setEmail(usuarioActualizado.getEmail());
+        usuarioExistente.setPassword(passwordEncoder.encode(usuarioActualizado.getPassword()));
 
-@Override
-public List<Usuario> obtenerUsuariosPorTipo(String tipoUsuario) {
-        // Recupera y devuelve usuarios filtrados por su tipo
+        if (usuarioExistente.getDatosPersonales() != null && usuarioActualizado.getDatosPersonales() != null) {
+            usuarioExistente.getDatosPersonales().setNombre(usuarioActualizado.getDatosPersonales().getNombre());
+            usuarioExistente.getDatosPersonales().setCedula(usuarioActualizado.getDatosPersonales().getCedula());
+            usuarioExistente.getDatosPersonales().setDireccion(usuarioActualizado.getDatosPersonales().getDireccion());
+            usuarioExistente.getDatosPersonales().setTelefono(usuarioActualizado.getDatosPersonales().getTelefono());
+        }
+
+        return usuarioRepositorio.save(usuarioExistente);
+    }
+
+    @Override
+    public List<Usuario> obtenerUsuariosPorTipo(String tipoUsuario) {
         return usuarioRepositorio.findByTipoUsuario_Nombre(tipoUsuario);
     }
 
-	@Override
+    @Override
     public Usuario buscarPorEmail(String email) {
         return usuarioRepositorio.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado con email: " + email));
     }
 }
-

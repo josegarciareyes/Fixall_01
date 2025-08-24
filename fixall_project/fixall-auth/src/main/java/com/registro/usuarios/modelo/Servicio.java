@@ -1,8 +1,5 @@
 package com.registro.usuarios.modelo;
 
-
-
-
 import java.time.LocalDateTime;
 
 import javax.persistence.CascadeType;

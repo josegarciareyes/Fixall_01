@@ -51,8 +51,9 @@ public class Usuario {
     )
     private Set<Especializacion> especializaciones;
 
-    @OneToOne(mappedBy = "usuario", cascade = CascadeType.ALL)
-    private DatosPersonales datosPersonales; // Relación uno a uno con DatosPersonales
+    @OneToOne(mappedBy = "usuario", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    private DatosPersonales datosPersonales;
+
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "tipo_usuario_id", nullable = false)

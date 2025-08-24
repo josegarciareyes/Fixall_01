@@ -10,8 +10,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 
 import com.registro.usuarios.controlador.dto.ServicioRegistroDTO;
+import com.registro.usuarios.modelo.Usuario;
 import com.registro.usuarios.repositorio.EspecializacionRepositorio;
 import com.registro.usuarios.repositorio.TipoServicioRepositorio;
+import com.registro.usuarios.repositorio.UsuarioRepositorio;
 import com.registro.usuarios.servicio.ServicioServicioImpl;
 
 @Controller
@@ -25,6 +27,9 @@ public class ClienteController {
     private EspecializacionRepositorio especializacionRepositorio;
 
     @Autowired
+    private UsuarioRepositorio usuarioRepositorio;
+
+    @Autowired
     private ServicioServicioImpl servicioServicio;
 
     @GetMapping("/home")
@@ -32,13 +37,20 @@ public class ClienteController {
         // Obtener email del usuario autenticado
         String emailUsuario = principal.getName();
 
-        // Cargar especializaciones y pasarlas al modelo
-        model.addAttribute("especializaciones", especializacionRepositorio.findAll());
+        // Obtener objeto Usuario para saludar por nombre
+        Usuario cliente = usuarioRepositorio.findByEmail(emailUsuario)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
 
-        // Pasar los tipos de servicio al modelo
+        // Agregar el nombre al modelo para el saludo personalizado
+        model.addAttribute("clienteNombre", 
+            cliente.getDatosPersonales() != null ? cliente.getDatosPersonales().getNombre() : "Cliente");
+
+
+        // Pasar las especializaciones y tipos de servicio
+        model.addAttribute("especializaciones", especializacionRepositorio.findAll());
         model.addAttribute("tipoServicios", tipoServicioRepositorio.findAll());
 
-        // Pasar los servicios registrados por el usuario al modelo
+        // Pasar los servicios registrados por el cliente
         model.addAttribute("serviciosRegistrados", servicioServicio.obtenerServiciosPorUsuario(emailUsuario));
 
         return "cliente/home";
@@ -46,9 +58,8 @@ public class ClienteController {
 
     @PostMapping("/registrar-servicio")
     public String registrarServicio(ServicioRegistroDTO registroDTO, Principal principal) {
-    String emailUsuario = principal.getName();
-    servicioServicio.registrarServicio(emailUsuario, registroDTO);
-    return "redirect:/cliente/home?exito";
+        String emailUsuario = principal.getName();
+        servicioServicio.registrarServicio(emailUsuario, registroDTO);
+        return "redirect:/cliente/home?exito";
     }
 }
-

@@ -1,28 +1,37 @@
 package com.registro.usuarios.repositorio;
 
 import java.util.List;
-import java.util.Set;
 
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import com.registro.usuarios.modelo.Especializacion;
 import com.registro.usuarios.modelo.Servicio;
 import com.registro.usuarios.modelo.Usuario;
 
-
 @Repository
 public interface ServicioRepositorio extends JpaRepository<Servicio, Long> {
 
+    /**
+     * ✅ Buscar todos los servicios de un cliente específico
+     */
     List<Servicio> findByUsuario(Usuario usuario);
 
-    List<Servicio> findByEspecializacion(Especializacion especializacion);
+    /**
+     * ✅ Buscar todos los servicios que correspondan a un conjunto de especializaciones
+     *    (esto lo usamos para filtrar servicios según las especializaciones del técnico)
+     */
+    List<Servicio> findByEspecializacionIn(Iterable<Especializacion> especializaciones);
 
-    // ✅ Nuevo método para técnicos: solo servicios PENDIENTES de su especialización
-    @Query("SELECT s FROM Servicio s " +
-           "WHERE s.estado.nombre = 'Pendiente' AND s.especializacion IN :especializaciones")
-    List<Servicio> findPendientesPorEspecializaciones(@Param("especializaciones") Set<Especializacion> especializaciones);
+    /**
+     * 🔹 (Opcional) Buscar servicios asignados a un técnico específico
+     *    Puede ser útil si quieres mostrar únicamente lo que ya tiene en curso ese técnico.
+     */
+    List<Servicio> findByTecnico(Usuario tecnico);
 
+    /**
+     * 🔹 (Opcional) Buscar servicios por estado y especialización
+     *    Útil si más adelante deseas filtrar por pendientes, en proceso, etc.
+     */
+    List<Servicio> findByEspecializacionInAndEstado_Nombre(Iterable<Especializacion> especializaciones, String estadoNombre);
 }
