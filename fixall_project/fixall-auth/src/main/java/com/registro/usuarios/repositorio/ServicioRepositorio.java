@@ -19,19 +19,28 @@ public interface ServicioRepositorio extends JpaRepository<Servicio, Long> {
 
     /**
      * ✅ Buscar todos los servicios que correspondan a un conjunto de especializaciones
-     *    (esto lo usamos para filtrar servicios según las especializaciones del técnico)
+     *    (lo usamos para filtrar servicios según las especializaciones del técnico)
      */
     List<Servicio> findByEspecializacionIn(Iterable<Especializacion> especializaciones);
 
     /**
-     * 🔹 (Opcional) Buscar servicios asignados a un técnico específico
-     *    Puede ser útil si quieres mostrar únicamente lo que ya tiene en curso ese técnico.
+     * ✅ Buscar servicios disponibles (no asignados) para un conjunto de especializaciones
+     */
+    List<Servicio> findByEspecializacionInAndTecnicoIsNull(Iterable<Especializacion> especializaciones);
+
+    /**
+     * ✅ Buscar servicios asignados a un técnico específico
      */
     List<Servicio> findByTecnico(Usuario tecnico);
 
     /**
      * 🔹 (Opcional) Buscar servicios por estado y especialización
-     *    Útil si más adelante deseas filtrar por pendientes, en proceso, etc.
      */
     List<Servicio> findByEspecializacionInAndEstado_Nombre(Iterable<Especializacion> especializaciones, String estadoNombre);
+
+    /**
+     * 🔹 (Opcional) Buscar servicios por cliente y estado
+     */
+    List<Servicio> findByUsuarioAndEstado_Nombre(Usuario usuario, String estadoNombre);
 }
+

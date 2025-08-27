@@ -1,9 +1,6 @@
 package com.registro.usuarios.controlador;
 
-import java.util.Enumeration;
 import java.util.List;
-
-import javax.servlet.http.HttpServletRequest;
 
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -11,6 +8,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 
 import com.registro.usuarios.modelo.Estado;
@@ -37,58 +35,46 @@ public class TecnicoController {
     }
 
     /**
-     * ✅ Vista principal del técnico
+     * ✅ Vista principal del técnico con dos tablas:
+     * - Disponibles
+     * - Asignados
      */
     @GetMapping("/home")
     public String mostrarHomeTecnico(Model model) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String emailTecnico = auth.getName();
 
-        // Usar el método existente en tu interfaz/impl
         Usuario tecnico = usuarioServicio.buscarPorEmail(emailTecnico);
 
-        // Puedes alternar entre ambos métodos según necesites
-        // List<Servicio> servicios = servicioServicio.obtenerServiciosParaTecnicoConFiltro(emailTecnico);
-        List<Servicio> servicios = servicioServicio.obtenerServiciosParaTecnico(emailTecnico);
+        List<Servicio> disponibles = servicioServicio.obtenerServiciosDisponiblesParaTecnico(emailTecnico);
+        List<Servicio> asignados = servicioServicio.obtenerServiciosAsignados(emailTecnico);
 
-        // Nombre a mostrar (si no hay datos personales, mostramos el email)
         String nombreMostrar = (tecnico.getDatosPersonales() != null)
                 ? tecnico.getDatosPersonales().getNombre()
                 : tecnico.getEmail();
 
-        // Estados para el <select> de la vista
         List<Estado> estados = estadoRepositorio.findAll();
 
         model.addAttribute("tecnicoNombre", nombreMostrar);
         model.addAttribute("especializaciones", tecnico.getEspecializaciones());
-        // La vista usa "serviciosSolicitados"
-        model.addAttribute("serviciosSolicitados", servicios);
+        model.addAttribute("serviciosDisponibles", disponibles);
+        model.addAttribute("serviciosAsignados", asignados);
         model.addAttribute("estados", estados);
 
         return "tecnico/home";
     }
 
     /**
-     * ✅ Acción para actualizar servicios desde la vista del técnico
+     * ✅ Acción para actualizar un servicio individual
      */
-    @PostMapping("/actualizar-servicios")
-    public String actualizarServicios(HttpServletRequest request) {
+    @PostMapping("/actualizar-servicio")
+    public String actualizarServicio(@RequestParam("servicioId") Long servicioId,
+                                     @RequestParam("estadoId") Long estadoId) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String emailTecnico = auth.getName();
 
-        Enumeration<String> nombresParametros = request.getParameterNames();
-        while (nombresParametros.hasMoreElements()) {
-            String nombreParametro = nombresParametros.nextElement();
-            if (nombreParametro.startsWith("estado_")) {
-                try {
-                    Long servicioId = Long.parseLong(nombreParametro.substring(7));
-                    Long estadoId = Long.parseLong(request.getParameter(nombreParametro));
-                    servicioServicio.actualizarEstadosServicios(servicioId, estadoId, emailTecnico);
-                } catch (NumberFormatException e) {
-                    System.err.println("Error al procesar parámetro: " + nombreParametro);
-                }
-            }
-        }
-        return "redirect:/tecnico/home?actualizados";
+        servicioServicio.actualizarEstadoServicio(servicioId, estadoId, emailTecnico);
+
+        return "redirect:/tecnico/home?actualizado";
     }
 }

@@ -11,18 +11,15 @@
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
     <div class="container-fluid">
         <a class="navbar-brand" href="#">Zona Cliente</a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbarNav">
+        <div class="collapse navbar-collapse">
             <ul class="navbar-nav me-auto">
                 <li class="nav-item">
-                    <a class="nav-link active" aria-current="page" th:href="@{/cliente/home}">Inicio</a>
+                    <a class="nav-link active" th:href="@{/cliente/home}">Inicio</a>
                 </li>
             </ul>
             <ul class="navbar-nav">
                 <li class="nav-item">
-                    <form th:action="@{/logout}" method="post" style="display: inline;">
+                    <form th:action="@{/logout}" method="post">
                         <button type="submit" class="btn btn-danger">Cerrar Sesión</button>
                     </form>
                 </li>
@@ -33,10 +30,6 @@
 
 <!-- 🔵 Contenido principal -->
 <div class="container mt-4">
-
-    <!-- Mostrar variable para depuración -->
-    <div class="alert alert-info" th:if="${clienteNombre}" th:text="'Variable clienteNombre: ' + ${clienteNombre}"></div>
-
 
     <!-- ✅ Saludo personalizado -->
     <div class="mb-4">
@@ -70,9 +63,9 @@
                     <label for="especializacion">Especialización</label>
                     <select class="form-control" id="especializacion" name="especializacionId" required>
                         <option disabled selected>Selecciona una especialización</option>
-                        <option th:each="especializacion : ${especializaciones}"
-                                th:value="${especializacion.id}"
-                                th:text="${especializacion.nombre}"></option>
+                        <option th:each="esp : ${especializaciones}"
+                                th:value="${esp.id}"
+                                th:text="${esp.nombre}"></option>
                     </select>
                 </div>
 
@@ -89,36 +82,114 @@
         </div>
     </div>
 
-    <!-- 🔵 Tabla de servicios registrados -->
+    <!-- 🔵 Tablas de servicios por estado -->
     <div class="row justify-content-center mt-5">
-        <div class="col-md-10">
-            <h3 class="text-center mb-4">Servicios Registrados</h3>
-            <div class="table-responsive">
+        <div class="col-md-12">
+
+            <!-- 🟡 Servicios Pendientes -->
+            <h3 class="text-center mb-3">Servicios Pendientes</h3>
+            <div class="table-responsive mb-5">
                 <table class="table table-bordered table-striped align-middle text-center">
-                    <thead class="table-primary">
+                    <thead class="table-warning">
                         <tr>
-                            <th>Tipo de Servicio</th>
+                            <th>Tipo</th>
                             <th>Especialización</th>
                             <th>Descripción</th>
-                            <th>Estado</th>
                             <th>Fecha de Registro</th>
-                            <th>Técnico Asignado</th>
-                            <th>Última Actualización</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr th:each="servicio : ${serviciosRegistrados}">
+                        <tr th:each="servicio : ${serviciosPendientes}">
                             <td th:text="${servicio.tipoServicio.nombre}"></td>
-                            <td th:text="${servicio.especializacion != null ? servicio.especializacion.nombre : 'No asignada'}"></td>
+                            <td th:text="${servicio.especializacion.nombre}"></td>
                             <td th:text="${servicio.detalleServicio.descripcion}"></td>
-                            <td th:text="${servicio.estado.nombre}"></td>
-                            <td th:text="${servicio.detalleServicio.fechaRegistro != null ? #temporals.format(servicio.detalleServicio.fechaRegistro, 'dd/MM/yyyy HH:mm') : 'Sin fecha'}"></td>
-                            <td th:text="${servicio.tecnico != null ? servicio.tecnico.datosPersonales.nombre : 'Pendiente'}"></td>
-                            <td th:text="${servicio.fechaUltimaActualizacion != null ? #temporals.format(servicio.fechaUltimaActualizacion, 'dd/MM/yyyy HH:mm') : 'Sin cambios'}"></td>
+                            <td th:text="${#temporals.format(servicio.detalleServicio.fechaRegistro, 'dd/MM/yyyy HH:mm')}"></td>
+                        </tr>
+                        <tr th:if="${#lists.isEmpty(serviciosPendientes)}">
+                            <td colspan="4">No hay servicios pendientes</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
+
+            <!-- 🔵 Servicios en Proceso -->
+            <h3 class="text-center mb-3">Servicios en Proceso</h3>
+            <div class="table-responsive mb-5">
+                <table class="table table-bordered table-striped align-middle text-center">
+                    <thead class="table-info">
+                        <tr>
+                            <th>Tipo</th>
+                            <th>Especialización</th>
+                            <th>Técnico</th>
+                            <th>Última Actualización</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="servicio : ${serviciosProceso}">
+                            <td th:text="${servicio.tipoServicio.nombre}"></td>
+                            <td th:text="${servicio.especializacion.nombre}"></td>
+                            <td th:text="${servicio.tecnico != null && servicio.tecnico.datosPersonales != null ? servicio.tecnico.datosPersonales.nombre : (servicio.tecnico != null ? servicio.tecnico.email : 'Pendiente')}"></td>
+                            <td th:text="${servicio.fechaUltimaActualizacion != null ? #temporals.format(servicio.fechaUltimaActualizacion, 'dd/MM/yyyy HH:mm') : 'Sin cambios'}"></td>
+                        </tr>
+                        <tr th:if="${#lists.isEmpty(serviciosProceso)}">
+                            <td colspan="4">No hay servicios en proceso</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 🟢 Servicios Completados -->
+            <h3 class="text-center mb-3">Servicios Completados</h3>
+            <div class="table-responsive mb-5">
+                <table class="table table-bordered table-striped align-middle text-center">
+                    <thead class="table-success">
+                        <tr>
+                            <th>Tipo</th>
+                            <th>Especialización</th>
+                            <th>Técnico</th>
+                            <th>Última Actualización</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="servicio : ${serviciosCompletados}">
+                            <td th:text="${servicio.tipoServicio.nombre}"></td>
+                            <td th:text="${servicio.especializacion.nombre}"></td>
+                            <td th:text="${servicio.tecnico != null && servicio.tecnico.datosPersonales != null ? servicio.tecnico.datosPersonales.nombre : (servicio.tecnico != null ? servicio.tecnico.email : 'Pendiente')}"></td>
+                            <td th:text="${servicio.fechaUltimaActualizacion != null ? #temporals.format(servicio.fechaUltimaActualizacion, 'dd/MM/yyyy HH:mm') : 'Sin cambios'}"></td>
+                        </tr>
+                        <tr th:if="${#lists.isEmpty(serviciosCompletados)}">
+                            <td colspan="4">No hay servicios completados</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 🔴 Servicios Cancelados -->
+            <h3 class="text-center mb-3">Servicios Cancelados</h3>
+            <div class="table-responsive mb-5">
+                <table class="table table-bordered table-striped align-middle text-center">
+                    <thead class="table-danger">
+                        <tr>
+                            <th>Tipo</th>
+                            <th>Especialización</th>
+                            <th>Descripción</th>
+                            <th>Última Actualización</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="servicio : ${serviciosCancelados}">
+                            <td th:text="${servicio.tipoServicio.nombre}"></td>
+                            <td th:text="${servicio.especializacion.nombre}"></td>
+                            <td th:text="${servicio.detalleServicio.descripcion}"></td>
+                            <td th:text="${servicio.fechaUltimaActualizacion != null ? #temporals.format(servicio.fechaUltimaActualizacion, 'dd/MM/yyyy HH:mm') : 'Sin cambios'}"></td>
+                        </tr>
+                        <tr th:if="${#lists.isEmpty(serviciosCancelados)}">
+                            <td colspan="4">No hay servicios cancelados</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
         </div>
     </div>
 </div>

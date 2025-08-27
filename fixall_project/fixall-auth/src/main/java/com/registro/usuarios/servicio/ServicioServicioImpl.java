@@ -77,10 +77,10 @@ public class ServicioServicioImpl {
     }
 
     /**
-     * ✅ Actualizar estado de un servicio por parte del técnico autenticado
+     * ✅ Actualizar estado de un servicio (se asigna si estaba pendiente)
      */
     @Transactional
-    public void actualizarEstadosServicios(Long servicioId, Long estadoId, String emailTecnico) {
+    public void actualizarEstadoServicio(Long servicioId, Long estadoId, String emailTecnico) {
         Servicio servicio = servicioRepositorio.findById(servicioId)
                 .orElseThrow(() -> new RuntimeException("Servicio no encontrado con ID: " + servicioId));
 
@@ -90,11 +90,11 @@ public class ServicioServicioImpl {
         Usuario tecnico = usuarioRepositorio.findByEmail(emailTecnico)
                 .orElseThrow(() -> new RuntimeException("Técnico no encontrado con email: " + emailTecnico));
 
-        // Si estaba sin asignar → se asigna al técnico que lo toma
+        // 🆕 Si estaba libre, lo asigna al técnico que lo está actualizando
         if (servicio.getTecnico() == null) {
             servicio.setTecnico(tecnico);
         } else if (!servicio.getTecnico().getId().equals(tecnico.getId())) {
-            throw new RuntimeException("El servicio ya está asignado a otro técnico");
+            throw new RuntimeException("El servicio ya fue tomado por otro técnico");
         }
 
         servicio.setEstado(nuevoEstado);
@@ -104,20 +104,38 @@ public class ServicioServicioImpl {
     }
 
     /**
-     * ✅ Obtener servicios por cliente
+     * ✅ Obtener servicios disponibles (sin técnico asignado) para un técnico
      */
-    public List<Servicio> obtenerServiciosPorUsuario(String emailUsuario) {
-        Usuario usuario = usuarioRepositorio.findByEmail(emailUsuario)
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado con email: " + emailUsuario));
-        return servicioRepositorio.findByUsuario(usuario);
+    public List<Servicio> obtenerServiciosDisponiblesParaTecnico(String emailTecnico) {
+        Usuario tecnico = usuarioRepositorio.findByEmail(emailTecnico)
+                .orElseThrow(() -> new RuntimeException("Técnico no encontrado con email: " + emailTecnico));
+        return servicioRepositorio.findByEspecializacionInAndTecnicoIsNull(tecnico.getEspecializaciones());
     }
 
     /**
-     * ✅ Obtener servicios visibles para un técnico (filtra solo por especialización)
+     * ✅ Obtener servicios asignados a un técnico
      */
-    public List<Servicio> obtenerServiciosParaTecnico(String emailTecnico) {
+    public List<Servicio> obtenerServiciosAsignados(String emailTecnico) {
         Usuario tecnico = usuarioRepositorio.findByEmail(emailTecnico)
                 .orElseThrow(() -> new RuntimeException("Técnico no encontrado con email: " + emailTecnico));
-        return servicioRepositorio.findByEspecializacionIn(tecnico.getEspecializaciones());
+        return servicioRepositorio.findByTecnico(tecnico);
+    }
+
+    /**
+     * ✅ Obtener servicios por cliente (todos)
+     */
+    public List<Servicio> obtenerServiciosPorUsuario(String emailUsuario) {
+        Usuario cliente = usuarioRepositorio.findByEmail(emailUsuario)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado con email: " + emailUsuario));
+        return servicioRepositorio.findByUsuario(cliente);
+    }
+
+    /**
+     * ✅ Filtrar servicios por estado para un cliente
+     */
+    public List<Servicio> obtenerServiciosPorEstado(String emailUsuario, String estadoNombre) {
+        Usuario cliente = usuarioRepositorio.findByEmail(emailUsuario)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado con email: " + emailUsuario));
+        return servicioRepositorio.findByUsuarioAndEstado_Nombre(cliente, estadoNombre);
     }
 }

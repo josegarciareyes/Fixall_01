@@ -34,24 +34,22 @@ public class ClienteController {
 
     @GetMapping("/home")
     public String mostrarHomeCliente(Model model, Principal principal) {
-        // Obtener email del usuario autenticado
         String emailUsuario = principal.getName();
 
-        // Obtener objeto Usuario para saludar por nombre
         Usuario cliente = usuarioRepositorio.findByEmail(emailUsuario)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
 
-        // Agregar el nombre al modelo para el saludo personalizado
-        model.addAttribute("clienteNombre", 
+        model.addAttribute("clienteNombre",
             cliente.getDatosPersonales() != null ? cliente.getDatosPersonales().getNombre() : "Cliente");
 
-
-        // Pasar las especializaciones y tipos de servicio
         model.addAttribute("especializaciones", especializacionRepositorio.findAll());
         model.addAttribute("tipoServicios", tipoServicioRepositorio.findAll());
 
-        // Pasar los servicios registrados por el cliente
-        model.addAttribute("serviciosRegistrados", servicioServicio.obtenerServiciosPorUsuario(emailUsuario));
+        // 🔹 Tablas separadas
+        model.addAttribute("serviciosPendientes", servicioServicio.obtenerServiciosPorEstado(emailUsuario, "Pendiente"));
+        model.addAttribute("serviciosProceso", servicioServicio.obtenerServiciosPorEstado(emailUsuario, "En Proceso"));
+        model.addAttribute("serviciosCompletados", servicioServicio.obtenerServiciosPorEstado(emailUsuario, "Completado"));
+        model.addAttribute("serviciosCancelados", servicioServicio.obtenerServiciosPorEstado(emailUsuario, "Cancelado"));
 
         return "cliente/home";
     }
